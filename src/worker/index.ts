@@ -35,6 +35,15 @@ const server = http.createServer((req, res) => {
     if (req.url === '/api/health' && req.method === 'GET') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(healthCheck()));
+    } else if (req.url === '/api/test' && req.method === 'GET') {
+      // Simple test endpoint that doesn't require any dependencies
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        status: 'ok',
+        message: 'Worker is running',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime()
+      }));
     } else if (req.url === '/api/jobs' && req.method === 'POST') {
       // Handle job requests
       let body = '';
@@ -88,20 +97,41 @@ const server = http.createServer((req, res) => {
 // Start the background system
 async function startWorker() {
   try {
+    console.log('🚀 Starting worker process...');
+    console.log('📊 Environment check:');
+    console.log('  - NODE_ENV:', process.env.NODE_ENV);
+    console.log('  - PORT:', process.env.PORT);
+    console.log('  - POSTGRES_URL:', process.env.POSTGRES_URL ? 'Set' : 'Not set');
+    console.log('  - REDIS_URL:', process.env.REDIS_URL ? 'Set' : 'Not set');
+
     // Start HTTP server immediately for health checks
     const port = parseInt(process.env.PORT || '3001');
+    console.log(`🌐 Starting HTTP server on port ${port}...`);
+    
     server.listen(port, () => {
-      console.log(`🌐 Health check server listening on port ${port}`);
+      console.log(`✅ HTTP server listening on port ${port}`);
+      console.log(`✅ Health check available at http://localhost:${port}/api/health`);
     }).on('error', (err: any) => {
+      console.error('❌ HTTP server error:', err.message);
       if (err.code === 'EADDRINUSE') {
         console.log(`⚠️ Port ${port} is in use, trying port ${port + 1}`);
         server.listen(port + 1, () => {
-          console.log(`🌐 Health check server listening on port ${port + 1}`);
+          console.log(`✅ HTTP server listening on port ${port + 1}`);
         });
-      } else {
-        console.error('❌ Server error:', err);
       }
     });
+
+    // Test health endpoint immediately
+    setTimeout(() => {
+      console.log('🧪 Testing health endpoint...');
+      fetch(`http://localhost:${port}/api/health`)
+        .then(response => {
+          console.log(`✅ Health endpoint test: ${response.status} ${response.statusText}`);
+        })
+        .catch(error => {
+          console.error('❌ Health endpoint test failed:', error.message);
+        });
+    }, 1000);
 
     // Try to initialize database and background system
     try {
@@ -122,6 +152,7 @@ async function startWorker() {
       // Retry database connection in background
       setTimeout(async () => {
         try {
+          console.log('🔄 Retrying database connection...');
           await DatabaseService.initializeDatabase();
           await startBackgroundSystem();
           await scheduleRecurringJobs();
