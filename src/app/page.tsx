@@ -191,6 +191,42 @@ export default function HomePage() {
     );
   }
 
+  const getMomentumTarget = () => {
+    // Calculate a meaningful target based on the current data
+    const totalEndorsers = endorsers.length;
+    const totalCandidates = candidates.length;
+    
+    if (totalEndorsers === 0 || totalCandidates === 0) {
+      return 50; // Default target if no data
+    }
+    
+    // Base target: 25% of total endorsers, minimum 20, maximum 200
+    const baseTarget = Math.max(20, Math.min(200, Math.round(totalEndorsers * 0.25)));
+    
+    // Adjust based on number of candidates (more candidates = higher target)
+    const candidateMultiplier = Math.max(1, totalCandidates * 0.8);
+    
+    return Math.round(baseTarget * candidateMultiplier);
+  };
+
+  const getMomentumStatus = () => {
+    const target = getMomentumTarget();
+    const current = endorsements.length;
+    const percentage = Math.round((current / target) * 100);
+    
+    if (current >= target) {
+      return `🎉 Exceeded target by ${current - target} endorsements!`;
+    } else if (percentage >= 75) {
+      return `🔥 Strong momentum - ${target - current} more needed`;
+    } else if (percentage >= 50) {
+      return `📈 Good progress - ${target - current} more needed`;
+    } else if (percentage >= 25) {
+      return `📊 Building momentum - ${target - current} more needed`;
+    } else {
+      return `🚀 Early stage - ${target - current} more needed`;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-yellow-50 via-white to-yellow-100">
       {/* Header */}
@@ -311,18 +347,39 @@ export default function HomePage() {
 
               {/* Overall Progress */}
               <div className="bg-white/90 backdrop-blur-md rounded-2xl p-8 border border-gray-200 shadow-lg">
-                <h3 className="text-2xl font-bold text-gray-900 mb-6">Campaign Momentum</h3>
+                <div className="flex items-center gap-2 mb-6">
+                  <h3 className="text-2xl font-bold text-gray-900">Campaign Momentum</h3>
+                  <div className="relative group">
+                    <button className="w-5 h-5 bg-gray-200 hover:bg-gray-300 rounded-full flex items-center justify-center text-xs text-gray-600 transition-colors">
+                      i
+                    </button>
+                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10">
+                      <div className="text-xs">
+                        <p className="font-semibold mb-1">What is Campaign Momentum?</p>
+                        <p className="text-gray-300">
+                          Tracks the pace of endorsements over time. 
+                          A higher momentum indicates growing support 
+                          and campaign viability.
+                        </p>
+                      </div>
+                      <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+                    </div>
+                  </div>
+                </div>
                 <div className="flex items-center justify-center h-48">
                   <CircularProgress
                     value={endorsements.length}
-                    max={20}
+                    max={getMomentumTarget()}
                     size="lg"
                     color="yellow"
                     animated={true}
                   />
                 </div>
                 <p className="text-center text-gray-600 mt-4">
-                  {endorsements.length} of 20 expected endorsements
+                  {endorsements.length} of {getMomentumTarget()} momentum target
+                </p>
+                <p className="text-center text-xs text-gray-500 mt-2">
+                  {getMomentumStatus()}
                 </p>
               </div>
             </div>

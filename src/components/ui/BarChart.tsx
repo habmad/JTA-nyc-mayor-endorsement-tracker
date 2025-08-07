@@ -40,20 +40,24 @@ const BarChart = React.forwardRef<HTMLDivElement, BarChartProps>(
     
     return (
       <div ref={ref} className={`w-full ${className}`} {...props}>
-        <div className="flex items-end justify-between h-full space-x-2" style={{ height }}>
+        <div 
+          className="flex items-end justify-between space-x-2 relative" 
+          style={{ height: `${height}px` }}
+        >
           {data.map((item, index) => {
             const percentage = (item.value / max) * 100;
             const color = item.color || colors[index % colors.length];
+            const barHeight = Math.max((percentage / 100) * height, 4); // Minimum 4px height
             
             return (
               <div key={item.label} className="flex-1 flex flex-col items-center">
-                <div className="w-full relative">
+                <div className="w-full relative flex flex-col justify-end" style={{ height: `${height}px` }}>
                   <div
                     className={`w-full rounded-t-lg transition-all duration-1000 ease-out ${
                       animated ? 'animate-pulse' : ''
                     } ${color}`}
                     style={{ 
-                      height: `${percentage}%`,
+                      height: `${barHeight}px`,
                       minHeight: '4px'
                     }}
                   />
