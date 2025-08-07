@@ -33,18 +33,7 @@ const server = http.createServer((req, res) => {
 // Start the background system
 async function startWorker() {
   try {
-    console.log('📊 Initializing database connection...');
-    await DatabaseService.initializeDatabase();
-    
-    console.log('🔧 Starting background system...');
-    await startBackgroundSystem();
-    
-    console.log('⏰ Scheduling recurring jobs...');
-    await scheduleRecurringJobs();
-    
-    console.log('✅ Background worker started successfully!');
-    
-    // Start HTTP server for health checks
+    // Start HTTP server immediately for health checks
     const port = parseInt(process.env.PORT || '3001');
     server.listen(port, () => {
       console.log(`🌐 Health check server listening on port ${port}`);
@@ -58,11 +47,44 @@ async function startWorker() {
         console.error('❌ Server error:', err);
       }
     });
+
+    // Try to initialize database and background system
+    try {
+      console.log('📊 Initializing database connection...');
+      await DatabaseService.initializeDatabase();
+      
+      console.log('🔧 Starting background system...');
+      await startBackgroundSystem();
+      
+      console.log('⏰ Scheduling recurring jobs...');
+      await scheduleRecurringJobs();
+      
+      console.log('✅ Background worker started successfully!');
+    } catch (dbError: any) {
+      console.warn('⚠️ Database initialization failed, but HTTP server is running:', dbError.message);
+      console.log('🔄 Will retry database connection in background...');
+      
+      // Retry database connection in background
+      setTimeout(async () => {
+        try {
+          await DatabaseService.initializeDatabase();
+          await startBackgroundSystem();
+          await scheduleRecurringJobs();
+          console.log('✅ Background system started after retry!');
+        } catch (retryError: any) {
+          console.error('❌ Background system retry failed:', retryError.message);
+        }
+      }, 10000); // Retry after 10 seconds
+    }
     
     // Log stats every 5 minutes
     setInterval(async () => {
-      const stats = await getQueueStats();
-      console.log('📈 Queue Stats:', stats);
+      try {
+        const stats = await getQueueStats();
+        console.log('📈 Queue Stats:', stats);
+      } catch (error) {
+        console.log('📈 Queue Stats: Not available yet');
+      }
     }, 5 * 60 * 1000);
     
     // Health check every minute
