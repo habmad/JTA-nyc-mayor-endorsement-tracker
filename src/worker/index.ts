@@ -6,6 +6,9 @@ import { DatabaseService } from '../lib/database-service';
 import * as http from 'http';
 
 console.log('🚀 Starting EndorseNYC Background Worker...');
+console.log('📊 Process ID:', process.pid);
+console.log('📊 Node version:', process.version);
+console.log('📊 Platform:', process.platform);
 
 // Health check endpoint for Railway
 const healthCheck = () => {
@@ -30,21 +33,28 @@ const healthCheck = () => {
 };
 
 // Create simple HTTP server for health checks
+console.log('🔧 Creating HTTP server...');
 const server = http.createServer((req, res) => {
   try {
+    console.log(`📡 HTTP Request: ${req.method} ${req.url}`);
+    
     if (req.url === '/api/health' && req.method === 'GET') {
+      console.log('✅ Health check requested');
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(healthCheck()));
     } else if (req.url === '/api/test' && req.method === 'GET') {
+      console.log('✅ Test endpoint requested');
       // Simple test endpoint that doesn't require any dependencies
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
         status: 'ok',
         message: 'Worker is running',
         timestamp: new Date().toISOString(),
-        uptime: process.uptime()
+        uptime: process.uptime(),
+        pid: process.pid
       }));
     } else if (req.url === '/api/jobs' && req.method === 'POST') {
+      console.log('📋 Job request received');
       // Handle job requests
       let body = '';
       req.on('data', chunk => {
@@ -76,15 +86,18 @@ const server = http.createServer((req, res) => {
               res.end(JSON.stringify({ error: 'Unknown job type' }));
           }
         } catch (error: any) {
+          console.error('❌ Job processing error:', error.message);
           res.writeHead(500, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: error.message }));
         }
       });
     } else {
+      console.log('❌ Unknown endpoint:', req.url);
       res.writeHead(404);
       res.end('Not Found');
     }
   } catch (error: any) {
+    console.error('❌ HTTP server error:', error.message);
     res.writeHead(500, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       status: 'error',
@@ -111,6 +124,7 @@ async function startWorker() {
     server.listen(port, () => {
       console.log(`✅ HTTP server listening on port ${port}`);
       console.log(`✅ Health check available at http://localhost:${port}/api/health`);
+      console.log(`✅ Test endpoint available at http://localhost:${port}/api/test`);
     }).on('error', (err: any) => {
       console.error('❌ HTTP server error:', err.message);
       if (err.code === 'EADDRINUSE') {
@@ -124,7 +138,7 @@ async function startWorker() {
     // Test health endpoint immediately
     setTimeout(() => {
       console.log('🧪 Testing health endpoint...');
-      fetch(`http://localhost:${port}/api/health`)
+      fetch(`http://localhost:${port}/api/test`)
         .then(response => {
           console.log(`✅ Health endpoint test: ${response.status} ${response.statusText}`);
         })
@@ -133,16 +147,21 @@ async function startWorker() {
         });
     }, 1000);
 
+    console.log('🔧 Attempting to initialize background systems...');
+
     // Try to initialize database and background system
     try {
       console.log('📊 Initializing database connection...');
       await DatabaseService.initializeDatabase();
+      console.log('✅ Database initialized successfully');
       
       console.log('🔧 Starting background system...');
       await startBackgroundSystem();
+      console.log('✅ Background system started successfully');
       
       console.log('⏰ Scheduling recurring jobs...');
       await scheduleRecurringJobs();
+      console.log('✅ Recurring jobs scheduled successfully');
       
       console.log('✅ Background worker started successfully!');
     } catch (dbError: any) {
@@ -183,8 +202,11 @@ async function startWorker() {
       }
     }, 60 * 1000);
     
+    console.log('🎉 Worker startup completed successfully!');
+    
   } catch (error: any) {
     console.error('❌ Error starting background worker:', error);
+    console.error('❌ Error stack:', error.stack);
     // Don't exit the process, just log the error
     console.log('🔄 Worker will continue running with limited functionality...');
   }
@@ -205,5 +227,23 @@ process.on('SIGINT', async () => {
   process.exit(0);
 });
 
+// Global error handlers
+process.on('uncaughtException', (error) => {
+  console.error('❌ Uncaught Exception:', error.message);
+  console.error('❌ Error stack:', error.stack);
+  console.log('🔄 Worker will continue running...');
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection at:', promise);
+  console.error('❌ Reason:', reason);
+  console.log('🔄 Worker will continue running...');
+});
+
 // Start the worker
-startWorker().catch(console.error);
+console.log('🎬 Starting worker...');
+startWorker().catch((error) => {
+  console.error('❌ Worker startup failed:', error.message);
+  console.error('❌ Error stack:', error.stack);
+  console.log('🔄 Worker will continue running with limited functionality...');
+});
