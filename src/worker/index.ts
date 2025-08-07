@@ -9,24 +9,43 @@ console.log('🚀 Starting EndorseNYC Background Worker...');
 
 // Health check endpoint for Railway
 const healthCheck = () => {
-  return {
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    memory: process.memoryUsage(),
-    rss: rssFeedParser.getStats(),
-    collector: endorsementCollector.getStats()
-  };
+  try {
+    return {
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      memory: process.memoryUsage(),
+      rss: rssFeedParser.getStats(),
+      collector: endorsementCollector.getStats(),
+      database: 'initializing' // Will be updated when DB connects
+    };
+  } catch (error: any) {
+    return {
+      status: 'starting',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      error: error.message
+    };
+  }
 };
 
 // Create simple HTTP server for health checks
 const server = http.createServer((req, res) => {
-  if (req.url === '/api/health' && req.method === 'GET') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify(healthCheck()));
-  } else {
-    res.writeHead(404);
-    res.end('Not Found');
+  try {
+    if (req.url === '/api/health' && req.method === 'GET') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(healthCheck()));
+    } else {
+      res.writeHead(404);
+      res.end('Not Found');
+    }
+  } catch (error: any) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      status: 'error',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    }));
   }
 });
 
