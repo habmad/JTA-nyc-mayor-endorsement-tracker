@@ -1,6 +1,7 @@
 'use client';
 
 import { Header } from '../../components/ui/Header';
+import Link from 'next/link';
 
 export default function AboutPage() {
   return (
@@ -14,7 +15,7 @@ export default function AboutPage() {
             About EndorseNYC
           </h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
-            A comprehensive platform tracking endorsements and coalition building in New York City's 2025 mayoral race.
+            A comprehensive platform tracking endorsements and coalition building in New York City&apos;s 2025 mayoral race.
           </p>
         </div>
 
@@ -191,15 +192,15 @@ export default function AboutPage() {
           <div className="bg-gradient-to-r from-yellow-50 to-yellow-100 backdrop-blur-md rounded-2xl p-12 border border-yellow-200 shadow-lg">
             <h3 className="text-3xl font-bold text-gray-900 mb-4">Ready to Explore?</h3>
             <p className="text-gray-600 mb-8 max-w-2xl mx-auto">
-              Start exploring the endorsements and coalition building happening in NYC's 2025 mayoral race. 
+              Start exploring the endorsements and coalition building happening in NYC&apos;s 2025 mayoral race. 
               See which communities and leaders are supporting each candidate.
             </p>
-            <a 
+            <Link 
               href="/" 
               className="inline-block px-8 py-4 text-lg font-medium text-gray-900 bg-gradient-to-r from-yellow-400 to-yellow-500 rounded-xl hover:from-yellow-500 hover:to-yellow-600 transition-all duration-300 shadow-lg hover:shadow-xl"
             >
               Explore Endorsements
-            </a>
+            </Link>
           </div>
         </div>
       </main>

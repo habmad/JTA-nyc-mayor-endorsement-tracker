@@ -416,7 +416,7 @@ export default function HomePage() {
                               </p>
                               {endorsement.quote && (
                                 <blockquote className="text-gray-700 italic border-l-4 border-yellow-400 pl-4 my-3">
-                                  "{endorsement.quote}"
+                                  &quot;{endorsement.quote}&quot;
                                 </blockquote>
                               )}
                             </div>
@@ -491,7 +491,7 @@ export default function HomePage() {
           <div className="bg-gradient-to-r from-yellow-50 to-yellow-100 backdrop-blur-md rounded-2xl p-12 border border-yellow-200 shadow-lg">
             <h3 className="text-3xl font-bold text-gray-900 mb-4">Stay Informed</h3>
             <p className="text-gray-600 mb-8 max-w-2xl mx-auto">
-              Get real-time updates on endorsements, track coalition building, and understand the political landscape of NYC's mayoral race.
+              Get real-time updates on endorsements, track coalition building, and understand the political landscape of NYC&apos;s mayoral race.
             </p>
             <button className="px-8 py-4 text-lg font-medium text-gray-900 bg-gradient-to-r from-yellow-400 to-yellow-500 rounded-xl hover:from-yellow-500 hover:to-yellow-600 transition-all duration-300 shadow-lg hover:shadow-xl">
               Explore Detailed Analysis

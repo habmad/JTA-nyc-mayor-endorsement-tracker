@@ -232,9 +232,12 @@ export default function ScraperPage() {
                   </div>
                 </div>
                 
-                <p className="text-gray-700 mb-6 leading-relaxed">
-                  Search for endorsements by specific endorsers or candidates. 
-                  Perfect for focused research or quick updates on particular individuals.
+                <p className="text-gray-600 mb-4">
+                  This tool allows you to manually scrape endorsements from news articles and other sources. 
+                  Enter a URL or text content to extract endorsement information.
+                </p>
+                <p className="text-gray-600 mb-6">
+                  The scraper will attempt to identify endorsements, endorsers, and candidates mentioned in the content.
                 </p>
                 
                 <div className="space-y-4">
@@ -370,7 +373,7 @@ export default function ScraperPage() {
                 </div>
                 <h3 className="text-lg font-bold text-gray-900 mb-2">AI Web Search</h3>
                 <p className="text-gray-700 text-sm leading-relaxed">
-                  Uses OpenAI's web search API to find recent news articles and social media posts about endorsements
+                  Uses OpenAI&apos;s web search API to find recent news articles and social media posts about endorsements
                 </p>
               </div>
               
@@ -490,7 +493,7 @@ export default function ScraperPage() {
                     
                     {result.quote && (
                       <div className="mb-3">
-                        <p className="text-gray-700 italic">"{result.quote}"</p>
+                        <p className="text-gray-700 italic">&quot;{result.quote}&quot;</p>
                       </div>
                     )}
                     
@@ -525,7 +528,7 @@ export default function ScraperPage() {
                 <div>
                   <h3 className="text-lg font-bold text-yellow-800">No Results Found</h3>
                   <p className="text-yellow-700">
-                    No endorsements were found for {searchedName}. This could mean no recent endorsements exist, or the search didn't find relevant content.
+                    No endorsements were found for {searchedName}. This could mean no recent endorsements exist, or the search didn&apos;t find relevant content.
                   </p>
                 </div>
               </div>

@@ -77,9 +77,9 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
 
   const toggleArrayFilter = <K extends keyof FilterState>(
     key: K,
-    value: any
+    value: FilterState[K] extends (infer U)[] ? U : never
   ) => {
-    const currentArray = filters[key] as any[];
+    const currentArray = filters[key] as unknown as readonly unknown[];
     const newArray = currentArray.includes(value)
       ? currentArray.filter(item => item !== value)
       : [...currentArray, value];
@@ -341,8 +341,8 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
                   <label key={type.value} className="flex items-center p-2 hover:bg-gray-50 rounded-lg cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={filters.endorsementType.includes(type.value as any)}
-                      onChange={() => toggleArrayFilter('endorsementType', type.value)}
+                      checked={filters.endorsementType.includes(type.value as EndorsementType)}
+                      onChange={() => toggleArrayFilter('endorsementType', type.value as EndorsementType)}
                       className="h-5 w-5 text-yellow-600 focus:ring-yellow-500 border-gray-300 rounded"
                     />
                     <span className="ml-3 text-base text-gray-700">{type.label}</span>
@@ -365,8 +365,8 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
                   <label key={sentiment.value} className="flex items-center p-2 hover:bg-gray-50 rounded-lg cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={filters.sentiment.includes(sentiment.value as any)}
-                      onChange={() => toggleArrayFilter('sentiment', sentiment.value)}
+                      checked={filters.sentiment.includes(sentiment.value as SentimentScore)}
+                      onChange={() => toggleArrayFilter('sentiment', sentiment.value as SentimentScore)}
                       className="h-5 w-5 text-yellow-600 focus:ring-yellow-500 border-gray-300 rounded"
                     />
                     <span className="ml-3 text-base text-gray-700">{sentiment.label}</span>

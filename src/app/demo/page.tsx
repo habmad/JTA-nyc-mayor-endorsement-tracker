@@ -7,7 +7,14 @@ import { Header } from '../../components/ui/Header';
 
 interface ClassificationResult {
   item: RSSFeedItem;
-  classification: any;
+  classification: {
+    confidence: number;
+    candidateMentions: string[];
+    endorsementType: string;
+    sentiment: string;
+    requiresHumanReview: boolean;
+    aiReasoning: string;
+  };
   timestamp: Date;
 }
 
