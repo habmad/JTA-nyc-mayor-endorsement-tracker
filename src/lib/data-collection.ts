@@ -1,5 +1,6 @@
 import { Endorsement, Endorser, SourceType, ConfidenceLevel, EndorsementType, SentimentScore } from '../types/database';
 import { rssFeedParser, RSSFeedItem } from './rss-parser';
+import { sql } from '@vercel/postgres';
 
 // AI Classification Interface
 export interface EndorsementCandidate {
@@ -377,14 +378,101 @@ export class EndorsementCollector {
 
   // Store endorsement candidate in database
   private async storeEndorsementCandidate(candidate: EndorsementCandidate): Promise<void> {
-    // TODO: Implement database storage
-    console.log('Storing endorsement candidate in database');
+    try {
+      console.log('💾 Storing endorsement candidate in database...');
+      
+      // Find candidate by name
+      const candidateName = candidate.candidateMentions[0]?.toLowerCase();
+      if (!candidateName) {
+        console.log('⚠️ No candidate name found in endorsement candidate');
+        return;
+      }
+
+      // Find candidate in database
+      const candidateResult = await sql`
+        SELECT id FROM candidates 
+        WHERE LOWER(name) LIKE ${`%${candidateName}%`}
+        LIMIT 1
+      `;
+
+      if (candidateResult.rows.length === 0) {
+        console.log(`⚠️ Candidate not found: ${candidateName}`);
+        return;
+      }
+
+      const candidateId = candidateResult.rows[0].id;
+
+      // Find or create endorser
+      let endorserId: string;
+      const endorserName = candidate.endorserInfo?.name || 'Unknown';
+      
+      const endorserResult = await sql`
+        SELECT id FROM endorsers 
+        WHERE LOWER(name) LIKE ${`%${endorserName.toLowerCase()}%`}
+        OR LOWER(display_name) LIKE ${`%${endorserName.toLowerCase()}%`}
+        LIMIT 1
+      `;
+
+      if (endorserResult.rows.length > 0) {
+        endorserId = endorserResult.rows[0].id;
+      } else {
+        // Create new endorser
+        const newEndorserResult = await sql`
+          INSERT INTO endorsers (
+            name, display_name, category, influence_score, is_organization
+          ) VALUES (
+            ${endorserName}, ${endorserName}, 'media', 50, false
+          ) RETURNING id
+        `;
+        endorserId = newEndorserResult.rows[0].id;
+        console.log(`✅ Created new endorser: ${endorserName}`);
+      }
+
+      // Check if endorsement already exists
+      const existingEndorsement = await sql`
+        SELECT id FROM endorsements 
+        WHERE endorser_id = ${endorserId} 
+        AND candidate_id = ${candidateId}
+        AND source_url = ${candidate.sourceUrl}
+      `;
+
+      if (existingEndorsement.rows.length > 0) {
+        console.log(`⏭️ Endorsement already exists: ${endorserName} → ${candidateName}`);
+        return;
+      }
+
+      // Insert endorsement
+      await sql`
+        INSERT INTO endorsements (
+          endorser_id, candidate_id, source_url, source_type, source_title,
+          quote, endorsement_type, sentiment, confidence, strength, endorsed_at
+        ) VALUES (
+          ${endorserId}, ${candidateId}, ${candidate.sourceUrl}, ${candidate.sourceType}, 'AI Detected',
+          ${candidate.rawText.substring(0, 500)}, ${candidate.endorsementType}, ${candidate.sentiment},
+          ${candidate.confidence.toString()}, 'standard', ${new Date().toISOString()}
+        )
+      `;
+
+      console.log(`✅ Stored endorsement candidate: ${endorserName} → ${candidateName} (confidence: ${Math.round(candidate.confidence * 100)}%)`);
+    } catch (error: any) {
+      console.error('❌ Error storing endorsement candidate:', error.message);
+    }
   }
 
   // Auto-approve high-confidence endorsements
   private async autoApproveEndorsement(candidate: EndorsementCandidate): Promise<void> {
-    // TODO: Implement auto-approval logic
-    console.log('Auto-approving high-confidence endorsement');
+    try {
+      console.log('✅ Auto-approving high-confidence endorsement...');
+      
+      // For now, just log the auto-approval
+      // In the future, this could update verification status, send notifications, etc.
+      console.log(`🚨 High-confidence endorsement auto-approved: ${candidate.candidateMentions.join(', ')}`);
+      console.log(`   Confidence: ${Math.round(candidate.confidence * 100)}%`);
+      console.log(`   Source: ${candidate.sourceUrl}`);
+      console.log(`   Reasoning: ${candidate.aiReasoning}`);
+    } catch (error: any) {
+      console.error('❌ Error auto-approving endorsement:', error.message);
+    }
   }
 
   // Update source statistics

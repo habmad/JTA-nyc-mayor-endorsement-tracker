@@ -3,6 +3,88 @@ import Redis from 'ioredis';
 import { rssFeedParser, RSSFeedItem } from './rss-parser';
 import { endorsementClassifier } from './data-collection';
 import { SourceType } from '../types/database';
+import { sql } from '@vercel/postgres';
+
+// Function to save endorsement to database
+async function saveEndorsementToDatabase(item: RSSFeedItem, classification: any): Promise<void> {
+  try {
+    // Find candidate by name (simple matching for now)
+    const candidateName = classification.candidateMentions[0]?.toLowerCase();
+    if (!candidateName) {
+      throw new Error('No candidate name found');
+    }
+
+    // Find candidate in database
+    const candidateResult = await sql`
+      SELECT id FROM candidates 
+      WHERE LOWER(name) LIKE ${`%${candidateName}%`}
+      LIMIT 1
+    `;
+
+    if (candidateResult.rows.length === 0) {
+      console.log(`⚠️ Candidate not found: ${candidateName}`);
+      return;
+    }
+
+    const candidateId = candidateResult.rows[0].id;
+
+    // Find or create endorser
+    let endorserId: string;
+    const endorserName = item.author || item.source || 'Unknown';
+    
+    const endorserResult = await sql`
+      SELECT id FROM endorsers 
+      WHERE LOWER(name) LIKE ${`%${endorserName.toLowerCase()}%`}
+      OR LOWER(display_name) LIKE ${`%${endorserName.toLowerCase()}%`}
+      LIMIT 1
+    `;
+
+    if (endorserResult.rows.length > 0) {
+      endorserId = endorserResult.rows[0].id;
+    } else {
+      // Create new endorser
+      const newEndorserResult = await sql`
+        INSERT INTO endorsers (
+          name, display_name, category, influence_score, is_organization
+        ) VALUES (
+          ${endorserName}, ${endorserName}, 'media', 50, false
+        ) RETURNING id
+      `;
+      endorserId = newEndorserResult.rows[0].id;
+      console.log(`✅ Created new endorser: ${endorserName}`);
+    }
+
+    // Check if endorsement already exists
+    const existingEndorsement = await sql`
+      SELECT id FROM endorsements 
+      WHERE endorser_id = ${endorserId} 
+      AND candidate_id = ${candidateId}
+      AND source_url = ${item.link}
+    `;
+
+    if (existingEndorsement.rows.length > 0) {
+      console.log(`⏭️ Endorsement already exists: ${endorserName} → ${candidateName}`);
+      return;
+    }
+
+    // Insert endorsement
+    await sql`
+      INSERT INTO endorsements (
+        endorser_id, candidate_id, source_url, source_type, source_title,
+        quote, endorsement_type, sentiment, confidence, strength, endorsed_at
+      ) VALUES (
+        ${endorserId}, ${candidateId}, ${item.link}, 'website', ${item.title},
+        ${item.description}, ${classification.endorsementType}, ${classification.sentiment},
+        ${classification.confidence.toString()}, 'standard', ${new Date().toISOString()}
+      )
+    `;
+
+    console.log(`✅ Saved endorsement: ${endorserName} → ${candidateName} (confidence: ${Math.round(classification.confidence * 100)}%)`);
+  } catch (error: any) {
+    console.error('❌ Error saving endorsement:', error.message);
+    throw error;
+  }
+}
 
 // Redis connection with error handling
 const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
@@ -121,6 +203,7 @@ const classificationWorker = new Worker('endorsement-classification', async (job
   
   try {
     const results = [];
+    let savedCount = 0;
     
     for (const item of job.data.rssItems) {
       const text = `${item.title} ${item.description}`;
@@ -141,6 +224,17 @@ const classificationWorker = new Worker('endorsement-classification', async (job
           timestamp: new Date()
         });
         
+        // Try to save to database if confidence is high enough
+        if (classification.confidence >= 0.6) {
+          try {
+            await saveEndorsementToDatabase(item, classification);
+            savedCount++;
+            console.log(`✅ Saved endorsement: ${classification.candidateMentions.join(', ')}`);
+          } catch (dbError: any) {
+            console.error('❌ Failed to save endorsement:', dbError.message);
+          }
+        }
+        
         // If high confidence, add to notification queue
         if (classification.confidence >= 0.85) {
           await notificationQueue.add('high-confidence-endorsement', {
@@ -155,8 +249,8 @@ const classificationWorker = new Worker('endorsement-classification', async (job
       }
     }
     
-    console.log(`Classified ${results.length} endorsement candidates`);
-    return { success: true, classifications: results.length };
+    console.log(`Classified ${results.length} endorsement candidates, saved ${savedCount} to database`);
+    return { success: true, classifications: results.length, saved: savedCount };
   } catch (error: any) {
     console.error('Classification worker error:', error.message);
     // Don't throw, just log the error
