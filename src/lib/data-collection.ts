@@ -381,6 +381,12 @@ export class EndorsementCollector {
     try {
       console.log('💾 Storing endorsement candidate in database...');
       
+      // Check if database is available
+      if (!process.env.POSTGRES_URL) {
+        console.log('⚠️ Database not configured, skipping endorsement save');
+        return;
+      }
+      
       // Find candidate by name
       const candidateName = candidate.candidateMentions[0]?.toLowerCase();
       if (!candidateName) {
@@ -456,6 +462,7 @@ export class EndorsementCollector {
       console.log(`✅ Stored endorsement candidate: ${endorserName} → ${candidateName} (confidence: ${Math.round(candidate.confidence * 100)}%)`);
     } catch (error: any) {
       console.error('❌ Error storing endorsement candidate:', error.message);
+      // Don't throw - just log the error and continue
     }
   }
 

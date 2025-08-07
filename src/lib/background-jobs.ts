@@ -8,10 +8,17 @@ import { sql } from '@vercel/postgres';
 // Function to save endorsement to database
 async function saveEndorsementToDatabase(item: RSSFeedItem, classification: any): Promise<void> {
   try {
+    // Check if database is available
+    if (!process.env.POSTGRES_URL) {
+      console.log('⚠️ Database not configured, skipping endorsement save');
+      return;
+    }
+
     // Find candidate by name (simple matching for now)
     const candidateName = classification.candidateMentions[0]?.toLowerCase();
     if (!candidateName) {
-      throw new Error('No candidate name found');
+      console.log('⚠️ No candidate name found in classification');
+      return;
     }
 
     // Find candidate in database
@@ -82,7 +89,7 @@ async function saveEndorsementToDatabase(item: RSSFeedItem, classification: any)
     console.log(`✅ Saved endorsement: ${endorserName} → ${candidateName} (confidence: ${Math.round(classification.confidence * 100)}%)`);
   } catch (error: any) {
     console.error('❌ Error saving endorsement:', error.message);
-    throw error;
+    // Don't throw - just log the error and continue
   }
 }
 
@@ -206,46 +213,55 @@ const classificationWorker = new Worker('endorsement-classification', async (job
     let savedCount = 0;
     
     for (const item of job.data.rssItems) {
-      const text = `${item.title} ${item.description}`;
-      
-      const classification = await endorsementClassifier.classifyEndorsement({
-        text,
-        sourceUrl: item.link,
-        sourceType: job.data.sourceType,
-        author: item.author,
-        organization: item.source
-      });
-      
-      // Only process if candidates are mentioned
-      if (classification.candidateMentions.length > 0) {
-        results.push({
-          item,
-          classification,
-          timestamp: new Date()
+      try {
+        const text = `${item.title} ${item.description}`;
+        
+        const classification = await endorsementClassifier.classifyEndorsement({
+          text,
+          sourceUrl: item.link,
+          sourceType: job.data.sourceType,
+          author: item.author,
+          organization: item.source
         });
         
-        // Try to save to database if confidence is high enough
-        if (classification.confidence >= 0.6) {
-          try {
-            await saveEndorsementToDatabase(item, classification);
-            savedCount++;
-            console.log(`✅ Saved endorsement: ${classification.candidateMentions.join(', ')}`);
-          } catch (dbError: any) {
-            console.error('❌ Failed to save endorsement:', dbError.message);
+        // Only process if candidates are mentioned
+        if (classification.candidateMentions.length > 0) {
+          results.push({
+            item,
+            classification,
+            timestamp: new Date()
+          });
+          
+          // Try to save to database if confidence is high enough
+          if (classification.confidence >= 0.6) {
+            try {
+              await saveEndorsementToDatabase(item, classification);
+              savedCount++;
+              console.log(`✅ Saved endorsement: ${classification.candidateMentions.join(', ')}`);
+            } catch (dbError: any) {
+              console.error('❌ Failed to save endorsement:', dbError.message);
+            }
+          }
+          
+          // If high confidence, add to notification queue
+          if (classification.confidence >= 0.85) {
+            try {
+              await notificationQueue.add('high-confidence-endorsement', {
+                endorsementId: `${item.source}-${item.title.substring(0, 50)}`, // Create a unique ID
+                type: 'high_confidence',
+                timestamp: new Date()
+              }, {
+                priority: 10, // Highest priority for high-confidence endorsements
+                attempts: 3
+              });
+            } catch (queueError: any) {
+              console.error('❌ Failed to add notification job:', queueError.message);
+            }
           }
         }
-        
-        // If high confidence, add to notification queue
-        if (classification.confidence >= 0.85) {
-          await notificationQueue.add('high-confidence-endorsement', {
-            endorsementId: `${item.source}-${item.title.substring(0, 50)}`, // Create a unique ID
-            type: 'high_confidence',
-            timestamp: new Date()
-          }, {
-            priority: 10, // Highest priority for high-confidence endorsements
-            attempts: 3
-          });
-        }
+      } catch (itemError: any) {
+        console.error('❌ Error processing RSS item:', itemError.message);
+        // Continue with next item
       }
     }
     
