@@ -4,11 +4,34 @@ import { rssFeedParser, RSSFeedItem } from './rss-parser';
 import { endorsementClassifier } from './data-collection';
 import { SourceType } from '../types/database';
 
-// Redis connection
+// Redis connection with error handling
 const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
-  maxRetriesPerRequest: null,
+  maxRetriesPerRequest: 3,
   enableReadyCheck: false,
   lazyConnect: true,
+  connectTimeout: 10000,
+  commandTimeout: 5000,
+});
+
+// Handle Redis connection errors
+redis.on('error', (error) => {
+  console.error('❌ Redis connection error:', error.message);
+});
+
+redis.on('connect', () => {
+  console.log('✅ Redis connected successfully');
+});
+
+redis.on('ready', () => {
+  console.log('✅ Redis ready for commands');
+});
+
+redis.on('close', () => {
+  console.log('⚠️ Redis connection closed');
+});
+
+redis.on('reconnecting', () => {
+  console.log('🔄 Redis reconnecting...');
 });
 
 // Queue definitions
@@ -54,28 +77,42 @@ const rssWorker = new Worker('rss-monitoring', async (job: Job<RSSJobData>) => {
     
     if (items.length > 0) {
       // Add classification job for each item
-      await classificationQueue.add('classify-rss-items', {
-        rssItems: items,
-        sourceType: 'rss',
-        timestamp: new Date()
-      }, {
-        priority: 5, // High priority for new content
-        attempts: 3,
-        backoff: {
-          type: 'exponential',
-          delay: 2000
-        }
-      });
+      try {
+        await classificationQueue.add('classify-rss-items', {
+          rssItems: items,
+          sourceType: 'rss',
+          timestamp: new Date()
+        }, {
+          priority: 5, // High priority for new content
+          attempts: 3,
+          backoff: {
+            type: 'exponential',
+            delay: 2000
+          }
+        });
+      } catch (queueError: any) {
+        console.error('Failed to add classification job:', queueError.message);
+      }
     }
     
     return { success: true, itemsFound: items.length };
-  } catch (error) {
-    console.error('RSS worker error:', error);
-    throw error;
+  } catch (error: any) {
+    console.error('RSS worker error:', error.message);
+    // Don't throw, just log the error
+    return { success: false, error: error.message };
   }
 }, {
   connection: redis,
   concurrency: 5 // Process 5 jobs simultaneously
+});
+
+// Handle worker errors
+rssWorker.on('error', (error) => {
+  console.error('RSS Worker error:', error.message);
+});
+
+rssWorker.on('failed', (job, error) => {
+  console.error(`RSS Job ${job?.id} failed:`, error.message);
 });
 
 // Classification Worker
@@ -120,13 +157,23 @@ const classificationWorker = new Worker('endorsement-classification', async (job
     
     console.log(`Classified ${results.length} endorsement candidates`);
     return { success: true, classifications: results.length };
-  } catch (error) {
-    console.error('Classification worker error:', error);
-    throw error;
+  } catch (error: any) {
+    console.error('Classification worker error:', error.message);
+    // Don't throw, just log the error
+    return { success: false, error: error.message };
   }
 }, {
   connection: redis,
   concurrency: 3 // Process 3 classification jobs simultaneously
+});
+
+// Handle classification worker errors
+classificationWorker.on('error', (error) => {
+  console.error('Classification Worker error:', error.message);
+});
+
+classificationWorker.on('failed', (job, error) => {
+  console.error(`Classification Job ${job?.id} failed:`, error.message);
 });
 
 // Notification Worker
@@ -261,10 +308,6 @@ export async function shutdownWorkers() {
 }
 
 // Error handling
-rssWorker.on('error', (error) => {
-  console.error('RSS worker error:', error);
-});
-
 classificationWorker.on('error', (error) => {
   console.error('Classification worker error:', error);
 });

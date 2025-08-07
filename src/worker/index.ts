@@ -96,25 +96,30 @@ async function startWorker() {
       }, 10000); // Retry after 10 seconds
     }
     
-    // Log stats every 5 minutes
+    // Log stats every 5 minutes (with error handling)
     setInterval(async () => {
       try {
         const stats = await getQueueStats();
         console.log('📈 Queue Stats:', stats);
-      } catch (error) {
-        console.log('📈 Queue Stats: Not available yet');
+      } catch (error: any) {
+        console.log('📈 Queue Stats: Not available yet -', error.message);
       }
     }, 5 * 60 * 1000);
     
     // Health check every minute
     setInterval(() => {
-      const health = healthCheck();
-      console.log('💚 Health Check:', health.status);
+      try {
+        const health = healthCheck();
+        console.log('💚 Health Check:', health.status);
+      } catch (error: any) {
+        console.log('💚 Health Check: Error -', error.message);
+      }
     }, 60 * 1000);
     
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Error starting background worker:', error);
-    process.exit(1);
+    // Don't exit the process, just log the error
+    console.log('🔄 Worker will continue running with limited functionality...');
   }
 }
 
