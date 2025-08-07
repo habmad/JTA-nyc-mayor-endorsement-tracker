@@ -3,6 +3,7 @@ import { scheduleRecurringJobs, getQueueStats } from '../lib/background-jobs';
 import { rssFeedParser } from '../lib/rss-parser';
 import { endorsementCollector } from '../lib/data-collection';
 import { DatabaseService } from '../lib/database-service';
+import * as http from 'http';
 
 console.log('🚀 Starting EndorseNYC Background Worker...');
 
@@ -18,6 +19,17 @@ const healthCheck = () => {
   };
 };
 
+// Create simple HTTP server for health checks
+const server = http.createServer((req, res) => {
+  if (req.url === '/api/health' && req.method === 'GET') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(healthCheck()));
+  } else {
+    res.writeHead(404);
+    res.end('Not Found');
+  }
+});
+
 // Start the background system
 async function startWorker() {
   try {
@@ -31,6 +43,12 @@ async function startWorker() {
     await scheduleRecurringJobs();
     
     console.log('✅ Background worker started successfully!');
+    
+    // Start HTTP server for health checks
+    const port = process.env.PORT || 3000;
+    server.listen(port, () => {
+      console.log(`🌐 Health check server listening on port ${port}`);
+    });
     
     // Log stats every 5 minutes
     setInterval(async () => {
@@ -53,12 +71,14 @@ async function startWorker() {
 // Handle graceful shutdown
 process.on('SIGTERM', async () => {
   console.log('🛑 Received SIGTERM, shutting down gracefully...');
+  server.close();
   await endorsementCollector.stopCollection();
   process.exit(0);
 });
 
 process.on('SIGINT', async () => {
   console.log('🛑 Received SIGINT, shutting down gracefully...');
+  server.close();
   await endorsementCollector.stopCollection();
   process.exit(0);
 });
