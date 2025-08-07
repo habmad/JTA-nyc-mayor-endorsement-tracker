@@ -35,6 +35,42 @@ const server = http.createServer((req, res) => {
     if (req.url === '/api/health' && req.method === 'GET') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(healthCheck()));
+    } else if (req.url === '/api/jobs' && req.method === 'POST') {
+      // Handle job requests
+      let body = '';
+      req.on('data', chunk => {
+        body += chunk.toString();
+      });
+      req.on('end', async () => {
+        try {
+          const { type, data } = JSON.parse(body);
+          console.log(`📋 Received job request: ${type}`);
+          
+          // Handle different job types
+          switch (type) {
+            case 'rss-check':
+              // Trigger RSS feed check
+              await rssFeedParser.checkAllFeeds();
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ success: true, message: 'RSS check triggered' }));
+              break;
+              
+            case 'background-system-start':
+              // Start background system
+              await startBackgroundSystem();
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ success: true, message: 'Background system started' }));
+              break;
+              
+            default:
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: 'Unknown job type' }));
+          }
+        } catch (error: any) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: error.message }));
+        }
+      });
     } else {
       res.writeHead(404);
       res.end('Not Found');

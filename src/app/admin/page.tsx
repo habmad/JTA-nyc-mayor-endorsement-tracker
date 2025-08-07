@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Endorsement, Endorser, Candidate } from '../../types/database';
-import { endorsementCollector, endorsementClassifier } from '../../lib/data-collection';
-import { getSystemStatus, SystemStatus } from '../../lib/system-status';
-import AddEndorserModal from '../../components/features/AddEndorserModal';
+import { Header } from '@/components/ui/Header';
+import { Endorsement, Endorser, Candidate } from '@/types/database';
+import { endorsementCollector } from '@/lib/data-collection';
+import { getSystemStatus, SystemStatus } from '@/lib/system-status';
+import { apiClient } from '@/lib/api-client';
+import AddEndorserModal from '@/components/features/AddEndorserModal';
 import EndorsersManagement from '../../components/features/EndorsersManagement';
-import { Header } from '../../components/ui/Header';
 
 interface AdminQueue {
   unverified: Array<Endorsement & { ai_confidence: number; ai_reasoning: string }>;
@@ -36,6 +37,8 @@ export default function AdminDashboard() {
   const [selectedEndorsement, setSelectedEndorsement] = useState<Endorsement | null>(null);
   const [isCollectionRunning, setIsCollectionRunning] = useState(false);
   const [isAddEndorserModalOpen, setIsAddEndorserModalOpen] = useState(false);
+  const [railwayWorkerStatus, setRailwayWorkerStatus] = useState<any>(null);
+  const [railwayWorkerAvailable, setRailwayWorkerAvailable] = useState(false);
 
   useEffect(() => {
     // Load admin queue data
@@ -43,6 +46,24 @@ export default function AdminDashboard() {
     
     // Load collection statistics
     setCollectionStats(endorsementCollector.getStats());
+    
+    // Check Railway worker status
+    const checkRailwayWorker = async () => {
+      try {
+        const isAvailable = await apiClient.checkRailwayWorkerHealth();
+        setRailwayWorkerAvailable(isAvailable);
+        
+        if (isAvailable) {
+          const status = await apiClient.getRailwayWorkerStatus();
+          setRailwayWorkerStatus(status);
+        }
+      } catch (error) {
+        console.error('Railway worker check failed:', error);
+        setRailwayWorkerAvailable(false);
+      }
+    };
+    
+    checkRailwayWorker();
     
     // Load RSS stats from API (includes all feeds)
     const loadRssStats = async () => {
@@ -86,6 +107,20 @@ export default function AdminDashboard() {
         }
       } catch (error) {
         console.error('Error refreshing RSS stats:', error);
+      }
+      
+      // Refresh Railway worker status
+      try {
+        const isAvailable = await apiClient.checkRailwayWorkerHealth();
+        setRailwayWorkerAvailable(isAvailable);
+        
+        if (isAvailable) {
+          const status = await apiClient.getRailwayWorkerStatus();
+          setRailwayWorkerStatus(status);
+        }
+      } catch (error) {
+        console.error('Railway worker check failed:', error);
+        setRailwayWorkerAvailable(false);
       }
       
       try {
@@ -305,6 +340,53 @@ export default function AdminDashboard() {
                     ))}
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Railway Worker Status */}
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 mb-8">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Railway Worker Status</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex items-center">
+              <div className={`p-2 rounded-lg ${railwayWorkerAvailable ? 'bg-green-100' : 'bg-red-100'}`}>
+                <svg className={`w-6 h-6 ${railwayWorkerAvailable ? 'text-green-600' : 'text-red-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
+                </svg>
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Worker Status</p>
+                <p className={`text-sm font-bold ${railwayWorkerAvailable ? 'text-green-600' : 'text-red-600'}`}>
+                  {railwayWorkerAvailable ? 'Online' : 'Offline'}
+                </p>
+              </div>
+            </div>
+            
+            {railwayWorkerStatus && (
+              <div className="flex items-center">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">RSS Feeds</p>
+                  <p className="text-sm font-bold text-gray-900">
+                    {railwayWorkerStatus.rss?.totalFeeds || 0} active
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+          
+          {railwayWorkerStatus && (
+            <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+              <h4 className="text-sm font-medium text-gray-700 mb-2">Worker Details</h4>
+              <div className="text-xs text-gray-600 space-y-1">
+                <p>Uptime: {Math.round(railwayWorkerStatus.uptime || 0)}s</p>
+                <p>Memory: {Math.round((railwayWorkerStatus.memory?.heapUsed || 0) / 1024 / 1024)}MB</p>
+                <p>Last Check: {railwayWorkerStatus.rss?.lastCheck ? new Date(railwayWorkerStatus.rss.lastCheck).toLocaleString() : 'Never'}</p>
               </div>
             </div>
           )}
