@@ -45,9 +45,18 @@ async function startWorker() {
     console.log('✅ Background worker started successfully!');
     
     // Start HTTP server for health checks
-    const port = process.env.PORT || 3000;
+    const port = parseInt(process.env.PORT || '3001');
     server.listen(port, () => {
       console.log(`🌐 Health check server listening on port ${port}`);
+    }).on('error', (err: any) => {
+      if (err.code === 'EADDRINUSE') {
+        console.log(`⚠️ Port ${port} is in use, trying port ${port + 1}`);
+        server.listen(port + 1, () => {
+          console.log(`🌐 Health check server listening on port ${port + 1}`);
+        });
+      } else {
+        console.error('❌ Server error:', err);
+      }
     });
     
     // Log stats every 5 minutes
